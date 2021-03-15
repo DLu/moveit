@@ -857,29 +857,6 @@ static inline VariableBounds jointBoundsFromURDF(const urdf::Joint* urdf_joint)
   }
   return b;
 }
-
-static inline std::vector<moveit_msgs::JointLimits> jointBoundsFromSRDF(const srdf::Model::VirtualJoint& srdf_joint)
-{
-  std::vector<moveit_msgs::JointLimits> limits;
-  for (const srdf::Model::Limit& limit : srdf_joint.limits_)
-  {
-    moveit_msgs::JointLimits limit_msg;
-    limit_msg.joint_name = limit.name_;
-    if (isfinite(limit.velocity_))
-    {
-      limit_msg.has_velocity_limits = true;
-      limit_msg.max_velocity = limit.velocity_;
-    }
-    if (isfinite(limit.acceleration_))
-    {
-      limit_msg.has_acceleration_limits = true;
-      limit_msg.max_acceleration = limit.acceleration_;
-    }
-    limits.push_back(limit_msg);
-  }
-  return limits;
-}
-
 }  // namespace
 
 JointModel* RobotModel::constructJointModel(const urdf::Joint* urdf_joint, const urdf::Link* child_link,
@@ -966,7 +943,6 @@ JointModel* RobotModel::constructJointModel(const urdf::Joint* urdf_joint, const
           if (virtual_joints[i].type_ != "fixed")
           {
             model_frame_ = virtual_joints[i].parent_frame_;
-            result->setVariableBounds(jointBoundsFromSRDF(virtual_joints[i]));
           }
           break;
         }
@@ -989,6 +965,49 @@ JointModel* RobotModel::constructJointModel(const urdf::Joint* urdf_joint, const
       {
         result->setPassive(true);
         break;
+      }
+    }
+
+    for (const srdf::Model::JointProperty& property : srdf_model.getJointProperties(result->getName()))
+    {
+      if (property.property_name_ == "angular_distance_weight")
+      {
+        double angular_distance_weight;
+        try
+        {
+          std::string::size_type sz;
+          angular_distance_weight = std::stod(property.value_, &sz);
+          if (sz != property.value_.size())
+          {
+            ROS_WARN_STREAM_NAMED(LOGNAME, "Extra characters after property " << property.property_name_ <<
+                                  " for joint " << property.joint_name_ << " as double: '" <<
+                                  property.value_.substr(sz) << "'");
+          }
+        }
+        catch (const std::invalid_argument& e)
+        {
+          ROS_ERROR_STREAM_NAMED(LOGNAME, "Unable to parse property " << property.property_name_ << " for joint " <<
+                                 property.joint_name_ << " as double: '" << property.value_ << "'");
+          continue;
+        }
+
+        if (result->getType() == JointModel::JointType::PLANAR)
+        {
+          ((PlanarJointModel*)result)->setAngularDistanceWeight(angular_distance_weight);
+        }
+        else if (result->getType() == JointModel::JointType::FLOATING)
+        {
+          ((FloatingJointModel*)result)->setAngularDistanceWeight(angular_distance_weight);
+        }
+        else
+        {
+          ROS_ERROR_NAMED(LOGNAME, "Cannot apply property %s to joint type: %s", property.property_name_.c_str(),
+                                                                                 result->getTypeName().c_str());
+        }
+      }
+      else
+      {
+        ROS_ERROR_NAMED(LOGNAME, "Unknown joint property: %s", property.property_name_.c_str());
       }
     }
   }
