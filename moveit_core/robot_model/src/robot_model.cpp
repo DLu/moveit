@@ -933,8 +933,6 @@ JointModel* RobotModel::constructJointModel(const urdf::Joint* urdf_joint, const
           result = new FixedJointModel(virtual_joints[i].name_);
         else if (virtual_joints[i].type_ == "planar")
           result = new PlanarJointModel(virtual_joints[i].name_);
-        else if (virtual_joints[i].type_ == "diff_drive")
-          result = new PlanarJointModel(virtual_joints[i].name_, PlanarJointModel::MotionModel::DIFF_DRIVE);
         else if (virtual_joints[i].type_ == "floating")
           result = new FloatingJointModel(virtual_joints[i].name_);
         if (result)
@@ -1004,6 +1002,34 @@ JointModel* RobotModel::constructJointModel(const urdf::Joint* urdf_joint, const
           ROS_ERROR_NAMED(LOGNAME, "Cannot apply property %s to joint type: %s", property.property_name_.c_str(),
                                                                                  result->getTypeName().c_str());
         }
+      }
+      else if (property.property_name_ == "motion_model")
+      {
+        if (result->getType() != JointModel::JointType::PLANAR)
+        {
+          ROS_ERROR_NAMED(LOGNAME, "Cannot apply property %s to joint type: %s", property.property_name_.c_str(),
+                          result->getTypeName().c_str());
+          continue;
+        }
+
+        PlanarJointModel::MotionModel motion_model;
+        if (property.value_ == "holonomic")
+        {
+          motion_model = PlanarJointModel::MotionModel::HOLONOMIC;
+        }
+        else if (property.value_ == "diff_drive")
+        {
+          motion_model = PlanarJointModel::MotionModel::DIFF_DRIVE;
+        }
+        else
+        {
+          ROS_ERROR_STREAM_NAMED(LOGNAME, "Unknown value for property " << property.property_name_ << " (" <<
+                                 property.joint_name_ << "): '" << property.value_ << "'");
+          ROS_ERROR_NAMED(LOGNAME, "Valid values are 'holonomic' and 'diff_drive'");
+          continue;
+        }
+
+        ((PlanarJointModel*)result)->setMotionModel(motion_model);
       }
       else
       {

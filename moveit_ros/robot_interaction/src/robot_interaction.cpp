@@ -209,7 +209,7 @@ void RobotInteraction::decideActiveJoints(const std::string& group)
     for (std::size_t i = 0; i < vj.size(); ++i)
       if (vj[i].name_ == robot_model_->getRootJointName())
       {
-        if (vj[i].type_ != "fixed")
+        if (vj[i].type_ == "planar" || vj[i].type_ == "floating")
         {
           JointInteraction v;
           v.connecting_link = vj[i].child_link_;
@@ -217,10 +217,10 @@ void RobotInteraction::decideActiveJoints(const std::string& group)
           if (!v.parent_frame.empty() && v.parent_frame[0] == '/')
             v.parent_frame = v.parent_frame.substr(1);
           v.joint_name = vj[i].name_;
-          if (vj[i].type_ == "floating")
-            v.dof = 6;
-          else
+          if (vj[i].type_ == "planar")
             v.dof = 3;
+          else
+            v.dof = 6;
           // take the max of the X, Y, Z extent
           v.size = std::max(std::max(aabb[1] - aabb[0], aabb[3] - aabb[2]), aabb[5] - aabb[4]);
           active_vj_.push_back(v);
